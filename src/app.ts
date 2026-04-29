@@ -1,5 +1,6 @@
 import express, { Application } from 'express';
 import { healthRouter } from './routes/health';
+import { tasksRouter } from './routes/tasks';
 import { errorHandler } from './middlewares/errorHandler';
 
 export function createApp(): Application {
@@ -8,6 +9,7 @@ export function createApp(): Application {
   app.use(express.json());
 
   app.use('/', healthRouter);
+  app.use('/tasks', tasksRouter);
 
   app.use(errorHandler);
 
