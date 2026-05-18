@@ -1,13 +1,41 @@
 import { Router, Request, Response } from 'express';
 import { randomUUID } from 'crypto';
+import { z } from 'zod';
 import { taskInputSchema, Task } from '../schemas/task';
 import { tasksDb } from '../storage/tasksDb';
 import { HttpError } from '../middlewares/errorHandler';
 
 export const tasksRouter = Router();
 
+const searchQuerySchema = z.object({
+  priority: z.enum(['low', 'med', 'high']).optional(),
+  q: z
+    .string()
+    .min(1, 'q must have at least 1 character')
+    .max(100, 'q must have at most 100 characters')
+    .optional(),
+});
+
 tasksRouter.get('/', (_req: Request, res: Response) => {
   res.status(200).json(tasksDb.list());
+});
+
+tasksRouter.get('/search', (req: Request, res: Response) => {
+  const { priority, q } = searchQuerySchema.parse(req.query);
+  const needle = q?.toLowerCase();
+  const result = tasksDb.list().filter((task) => {
+    if (priority && task.priority !== priority) return false;
+    if (needle && !task.title.toLowerCase().includes(needle)) return false;
+    return true;
+  });
+  res.status(200).json(result);
+});
+
+tasksRouter.get('/stats', (_req: Request, res: Response) => {
+  const all = tasksDb.list();
+  const byPriority: Record<Task['priority'], number> = { low: 0, med: 0, high: 0 };
+  for (const task of all) byPriority[task.priority]++;
+  res.status(200).json({ total: all.length, byPriority });
 });
 
 tasksRouter.get('/:id', (req: Request, res: Response) => {

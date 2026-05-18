@@ -54,6 +54,67 @@ describe('tasks API', () => {
     expect(tasksDb.get(created.body.id)).toBeUndefined();
   });
 
+  describe('GET /tasks/search', () => {
+    beforeEach(async () => {
+      await request(app).post('/tasks').send({ title: 'Buy milk', priority: 'low' });
+      await request(app).post('/tasks').send({ title: 'Buy bread', priority: 'high' });
+      await request(app).post('/tasks').send({ title: 'Write report', priority: 'high' });
+    });
+
+    it('with no params returns all tasks', async () => {
+      const res = await request(app).get('/tasks/search');
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveLength(3);
+    });
+
+    it('filters by priority', async () => {
+      const res = await request(app).get('/tasks/search?priority=high');
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveLength(2);
+      expect(res.body.every((t: { priority: string }) => t.priority === 'high')).toBe(true);
+    });
+
+    it('filters by q (case-insensitive title substring)', async () => {
+      const res = await request(app).get('/tasks/search?q=BUY');
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveLength(2);
+      expect(
+        res.body.every((t: { title: string }) => t.title.toLowerCase().includes('buy')),
+      ).toBe(true);
+    });
+
+    it('combines priority and q filters', async () => {
+      const res = await request(app).get('/tasks/search?priority=high&q=bread');
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveLength(1);
+      expect(res.body[0]).toMatchObject({ title: 'Buy bread', priority: 'high' });
+    });
+
+    it('rejects an invalid priority with 400 in {error, status} shape', async () => {
+      const res = await request(app).get('/tasks/search?priority=urgent');
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({ error: expect.any(String), status: 400 });
+    });
+  });
+
+  describe('GET /tasks/stats', () => {
+    it('returns zeros when there are no tasks', async () => {
+      const res = await request(app).get('/tasks/stats');
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ total: 0, byPriority: { low: 0, med: 0, high: 0 } });
+    });
+
+    it('counts total and per priority', async () => {
+      await request(app).post('/tasks').send({ title: 'a', priority: 'low' });
+      await request(app).post('/tasks').send({ title: 'b', priority: 'high' });
+      await request(app).post('/tasks').send({ title: 'c', priority: 'high' });
+
+      const res = await request(app).get('/tasks/stats');
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ total: 3, byPriority: { low: 1, med: 0, high: 2 } });
+    });
+  });
+
   it('full lifecycle: create -> get -> update -> delete', async () => {
     const create = await request(app)
       .post('/tasks')
