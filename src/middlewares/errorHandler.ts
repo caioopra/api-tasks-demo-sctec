@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
+import { env } from '../config/env';
 
 export class HttpError extends Error {
   constructor(public status: number, message: string) {
@@ -23,6 +24,13 @@ export function errorHandler(
     return;
   }
 
-  const message = err instanceof Error ? err.message : 'Internal Server Error';
+  // Hide internal error details in production; surface them in dev/test so the
+  // educational examples remain debuggable.
+  const message =
+    env.NODE_ENV === 'production'
+      ? 'Internal Server Error'
+      : err instanceof Error
+        ? err.message
+        : 'Internal Server Error';
   res.status(500).json({ error: message, status: 500 });
 }
