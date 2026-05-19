@@ -10,7 +10,8 @@
     "test": "jest --passWithNoTests",
     "test:watch": "jest --watch",
     "lint": "eslint \"src/**/*.ts\"",
-    "lint:fix": "eslint \"src/**/*.ts\" --fix"
+    "lint:fix": "eslint \"src/**/*.ts\" --fix",
+    "docs:gen": "ts-node src/openapi/generate.ts"
   },
   "keywords": [
     "express",
@@ -20,8 +21,10 @@
   ],
   "license": "MIT",
   "dependencies": {
+    "@asteasolutions/zod-to-openapi": "^7.3.4",
     "dotenv": "^17.4.2",
     "express": "^4.19.2",
+    "swagger-ui-express": "^5.0.1",
     "zod": "^3.23.8"
   },
   "devDependencies": {
@@ -29,6 +32,7 @@
     "@types/jest": "^29.5.12",
     "@types/node": "^20.12.12",
     "@types/supertest": "^6.0.2",
+    "@types/swagger-ui-express": "^4.1.8",
     "@typescript-eslint/eslint-plugin": "^7.10.0",
     "@typescript-eslint/parser": "^7.10.0",
     "eslint": "^8.57.0",

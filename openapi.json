@@ -1,0 +1,535 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "api-tasks-demo",
+    "version": "0.1.0",
+    "description": "API de tarefas (demo) — Node.js + Express + TypeScript + Zod"
+  },
+  "components": {
+    "schemas": {
+      "TaskInput": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "example": "Write the OpenAPI docs"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "med",
+              "high"
+            ],
+            "example": "high"
+          }
+        },
+        "required": [
+          "title",
+          "priority"
+        ]
+      },
+      "Task": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/TaskInput"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "example": "b3b0c4f8-9b6f-4a7e-9d6e-1b5b3c4d5e6f"
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time",
+                "example": "2026-05-18T12:00:00.000Z"
+              }
+            },
+            "required": [
+              "id",
+              "created_at"
+            ]
+          }
+        ]
+      },
+      "TaskSearchQuery": {
+        "type": "object",
+        "properties": {
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "med",
+              "high"
+            ],
+            "example": "high"
+          },
+          "q": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "example": "docs"
+          }
+        }
+      },
+      "TaskStats": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "example": 3
+          },
+          "byPriority": {
+            "type": "object",
+            "properties": {
+              "low": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "med": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "high": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "low",
+              "med",
+              "high"
+            ]
+          }
+        },
+        "required": [
+          "total",
+          "byPriority"
+        ]
+      },
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok"
+            ],
+            "example": "ok"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "example": "task not found"
+          },
+          "status": {
+            "type": "integer",
+            "example": 404
+          }
+        },
+        "required": [
+          "error",
+          "status"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Liveness probe",
+        "description": "Cheap, dependency-free check used by uptime monitors and smoke tests. Returns as soon as the process can answer; touches no external dependencies.",
+        "responses": {
+          "200": {
+            "description": "Process is alive.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error — catch-all branch of the global error handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tasks": {
+      "get": {
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "List all tasks",
+        "description": "Returns every task currently in the in-memory store, in insertion order. Returns an empty array when no tasks exist.",
+        "responses": {
+          "200": {
+            "description": "Array of tasks (possibly empty).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Task"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error — catch-all branch of the global error handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Create a task",
+        "description": "Create a new task. The server owns `id` (UUID v4) and `created_at` (ISO-8601, UTC); the client only supplies `title` and `priority`.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Task created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Body failed validation (missing/empty `title`, title over 100 chars, unknown `priority`, ...).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error — catch-all branch of the global error handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tasks/search": {
+      "get": {
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Search tasks",
+        "description": "Filter tasks by priority and/or a case-insensitive substring of the title. Both query params are optional; with neither, the route behaves like GET /tasks. Filters compose with AND semantics.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "low",
+                "med",
+                "high"
+              ],
+              "example": "high"
+            },
+            "required": false,
+            "name": "priority",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "example": "docs"
+            },
+            "required": false,
+            "name": "q",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching tasks (possibly empty).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Task"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A query value failed validation (e.g. unknown priority, or `q` outside 1–100 chars).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error — catch-all branch of the global error handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tasks/stats": {
+      "get": {
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Task counts by priority",
+        "description": "Aggregate counters over the task store: total count plus a breakdown by priority. All keys under `byPriority` are present even when there are no tasks (counters at 0), so consumers can read the shape unconditionally.",
+        "responses": {
+          "200": {
+            "description": "Aggregate counters.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskStats"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error — catch-all branch of the global error handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tasks/{id}": {
+      "get": {
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Get a single task",
+        "description": "Fetch one task by its id. The id is whatever was returned on create; in this demo it is always a UUID v4 produced by the server.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "b3b0c4f8-9b6f-4a7e-9d6e-1b5b3c4d5e6f"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Task found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No task exists with the given id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error — catch-all branch of the global error handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Replace a task",
+        "description": "Replace the user-supplied fields of an existing task. Server-owned fields (`id`, `created_at`) are preserved and cannot be overwritten by the client.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "b3b0c4f8-9b6f-4a7e-9d6e-1b5b3c4d5e6f"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Task updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Body failed validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No task exists with the given id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error — catch-all branch of the global error handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Delete a task",
+        "description": "Remove a task by id. Returns 204 with no body on success.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "b3b0c4f8-9b6f-4a7e-9d6e-1b5b3c4d5e6f"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Task deleted."
+          },
+          "404": {
+            "description": "No task exists with the given id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error — catch-all branch of the global error handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "webhooks": {}
+}

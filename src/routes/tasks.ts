@@ -1,7 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { randomUUID } from 'crypto';
-import { z } from 'zod';
-import { taskInputSchema, Task } from '../schemas/task';
+import { taskInputSchema, taskSearchQuerySchema, Task } from '../schemas/task';
 import { tasksDb } from '../storage/tasksDb';
 import { HttpError } from '../middlewares/errorHandler';
 
@@ -15,22 +14,6 @@ import { HttpError } from '../middlewares/errorHandler';
  * before `/:id`, otherwise Express matches them as an id value.
  */
 export const tasksRouter = Router();
-
-/**
- * Query-string schema for `GET /tasks/search`.
- *
- * Both fields are optional so the route degrades gracefully: with no params
- * it behaves like `GET /tasks`. An invalid `priority` is rejected with 400
- * by the global error handler.
- */
-const searchQuerySchema = z.object({
-  priority: z.enum(['low', 'med', 'high']).optional(),
-  q: z
-    .string()
-    .min(1, 'q must have at least 1 character')
-    .max(100, 'q must have at most 100 characters')
-    .optional(),
-});
 
 /**
  * `GET /tasks` — list every task.
@@ -56,7 +39,7 @@ tasksRouter.get('/', (_req: Request, res: Response) => {
  * - 400 with `{ error, status }` when a query value fails validation.
  */
 tasksRouter.get('/search', (req: Request, res: Response) => {
-  const { priority, q } = searchQuerySchema.parse(req.query);
+  const { priority, q } = taskSearchQuerySchema.parse(req.query);
   const needle = q?.toLowerCase();
   const result = tasksDb.list().filter((task) => {
     if (priority && task.priority !== priority) return false;
