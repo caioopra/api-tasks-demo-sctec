@@ -19,6 +19,13 @@ const envSchema = z.object({
     .positive()
     .default(3000),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  // Secret used to sign the fake-JWT tokens minted by `auth.service`. The
+  // default is intentionally a placeholder — fine for the demo, override in
+  // any real environment via `.env`.
+  JWT_SECRET: z
+    .string()
+    .min(16, 'JWT_SECRET must be at least 16 characters')
+    .default('insecure-dev-secret-please-override'),
 });
 
 /**

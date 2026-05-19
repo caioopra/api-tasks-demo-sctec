@@ -4,7 +4,9 @@ import express, { Application } from 'express';
 import swaggerUi from 'swagger-ui-express';
 import { healthRouter } from './routes/health';
 import { tasksRouter } from './routes/tasks';
+import { authRouter } from './routes/auth';
 import { errorHandler } from './middlewares/errorHandler';
+import { jwtMiddleware } from './middlewares/jwt.middleware';
 
 /**
  * Load the generated OpenAPI document from disk.
@@ -37,7 +39,8 @@ function loadOpenApiDoc(): Record<string, unknown> | null {
  *
  * 1. `express.json()` first, so handlers receive a parsed body.
  * 2. Swagger UI at `/docs` (only if `openapi.json` is present).
- * 3. Feature routers next (`/`, `/tasks`).
+ * 3. Feature routers next: `/` (public health), `/auth` (public login/
+ *    register), and `/tasks` behind {@link jwtMiddleware}.
  * 4. {@link errorHandler} last, so it catches errors thrown by any route.
  *
  * @returns a new, ready-to-listen Express app.
@@ -53,7 +56,8 @@ export function createApp(): Application {
   }
 
   app.use('/', healthRouter);
-  app.use('/tasks', tasksRouter);
+  app.use('/auth', authRouter);
+  app.use('/tasks', jwtMiddleware, tasksRouter);
 
   app.use(errorHandler);
 
