@@ -182,6 +182,41 @@ describe('tasks API', () => {
     expect(after.body).toEqual({ error: 'task not found', status: 404 });
   });
 
+  describe('POST /tasks/:id/share', () => {
+    it('returns 200 with task, shared_by and shared_at for an existing task', async () => {
+      const created = await request(app)
+        .post('/tasks')
+        .set('Authorization', bearer)
+        .send({ title: 'Shareable', priority: 'med' });
+
+      const res = await request(app)
+        .post(`/tasks/${created.body.id}/share`)
+        .set('Authorization', bearer);
+
+      expect(res.status).toBe(200);
+      expect(res.body.task).toEqual(created.body);
+      expect(res.body.shared_by).toEqual({ email: 'tester@example.com' });
+      expect(typeof res.body.shared_at).toBe('string');
+      expect(() => new Date(res.body.shared_at).toISOString()).not.toThrow();
+    });
+
+    it('returns 404 when the task id does not exist', async () => {
+      const res = await request(app)
+        .post('/tasks/does-not-exist/share')
+        .set('Authorization', bearer);
+
+      expect(res.status).toBe(404);
+      expect(res.body).toEqual({ error: 'task not found', status: 404 });
+    });
+
+    it('returns 401 when no bearer token is supplied', async () => {
+      const res = await request(app).post('/tasks/anything/share');
+
+      expect(res.status).toBe(401);
+      expect(res.body).toEqual({ error: expect.any(String), status: 401 });
+    });
+  });
+
   describe('cache behaviour', () => {
     it('GET /tasks/:id serves stale cached value after the underlying row is deleted from the db directly', async () => {
       // This test demonstrates the read-through cache: once a task is fetched,

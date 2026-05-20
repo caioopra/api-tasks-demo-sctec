@@ -145,6 +145,28 @@ tasksRouter.put('/:id', (req: Request, res: Response) => {
 });
 
 /**
+ * `POST /tasks/:id/share` — snapshot a task for sharing.
+ *
+ * Stateless export: returns the task together with provenance (the caller's
+ * email from the JWT) and a server-generated timestamp. Nothing is persisted
+ * and the cache is neither read nor written — each call produces a fresh
+ * snapshot.
+ *
+ * @returns
+ * - 200 with `{ task, shared_by: { email }, shared_at }`.
+ * - 404 when the id does not exist.
+ */
+tasksRouter.post('/:id/share', (req: Request, res: Response) => {
+  const task = tasksDb.get(req.params.id);
+  if (!task) throw new HttpError(404, 'task not found');
+  res.status(200).json({
+    task,
+    shared_by: { email: req.user!.email },
+    shared_at: new Date().toISOString(),
+  });
+});
+
+/**
  * `DELETE /tasks/:id` — remove a task. Also evicts any cached copy.
  *
  * @returns
