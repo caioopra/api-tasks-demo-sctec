@@ -84,6 +84,37 @@
           }
         }
       },
+      "TaskShare": {
+        "type": "object",
+        "properties": {
+          "task": {
+            "$ref": "#/components/schemas/Task"
+          },
+          "shared_by": {
+            "type": "object",
+            "properties": {
+              "email": {
+                "type": "string",
+                "format": "email",
+                "example": "tester@example.com"
+              }
+            },
+            "required": [
+              "email"
+            ]
+          },
+          "shared_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-05-19T12:34:56.000Z"
+          }
+        },
+        "required": [
+          "task",
+          "shared_by",
+          "shared_at"
+        ]
+      },
       "TaskStats": {
         "type": "object",
         "properties": {
@@ -663,6 +694,73 @@
         "responses": {
           "204": {
             "description": "Task deleted."
+          },
+          "401": {
+            "description": "Authorization header is missing, malformed, or carries an invalid token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No task exists with the given id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error — catch-all branch of the global error handler.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tasks/{id}/share": {
+      "post": {
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Share a task",
+        "description": "Produce a stateless snapshot of a task suitable for forwarding to a third party. The response embeds the task, the caller (`shared_by.email`, read from the JWT) and a server-generated `shared_at` timestamp. Nothing is persisted and the cache is neither read nor written — each call yields a fresh snapshot.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "b3b0c4f8-9b6f-4a7e-9d6e-1b5b3c4d5e6f"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Snapshot of the task plus sharing provenance.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskShare"
+                }
+              }
+            }
           },
           "401": {
             "description": "Authorization header is missing, malformed, or carries an invalid token.",

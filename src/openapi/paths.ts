@@ -4,6 +4,7 @@ import {
   taskInputSchema,
   taskSchema,
   taskSearchQuerySchema,
+  taskShareSchema,
   taskStatsSchema,
 } from '../schemas/task';
 import { healthResponseSchema } from '../schemas/health';
@@ -38,6 +39,7 @@ import {
 registry.register('TaskInput', taskInputSchema);
 registry.register('Task', taskSchema);
 registry.register('TaskSearchQuery', taskSearchQuerySchema);
+registry.register('TaskShare', taskShareSchema);
 registry.register('TaskStats', taskStatsSchema);
 registry.register('HealthResponse', healthResponseSchema);
 registry.register('Error', errorResponseSchema);
@@ -229,6 +231,28 @@ registry.registerPath({
       content: jsonContent(taskSchema),
     },
     400: errorResponse('Body failed validation.'),
+    401: unauthorizedResponse,
+    404: errorResponse('No task exists with the given id.'),
+    500: internalServerError,
+  },
+});
+
+registry.registerPath({
+  method: 'post',
+  path: '/tasks/{id}/share',
+  tags: ['Tasks'],
+  summary: 'Share a task',
+  description:
+    'Produce a stateless snapshot of a task suitable for forwarding to a third party. The response embeds the task, the caller (`shared_by.email`, read from the JWT) and a server-generated `shared_at` timestamp. Nothing is persisted and the cache is neither read nor written — each call yields a fresh snapshot.',
+  security: tasksSecurity,
+  request: {
+    params: idParam,
+  },
+  responses: {
+    200: {
+      description: 'Snapshot of the task plus sharing provenance.',
+      content: jsonContent(taskShareSchema),
+    },
     401: unauthorizedResponse,
     404: errorResponse('No task exists with the given id.'),
     500: internalServerError,

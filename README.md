@@ -31,10 +31,11 @@ cp .env.example .env   # opcional: ajustar PORT/NODE_ENV
 
 As variáveis são validadas no boot por um schema Zod (`src/config/env.ts`). Valor inválido faz o processo abortar **antes** de aceitar requisições.
 
-| Variável   | Descrição                                                                                    | Exemplo       |
-| ---------- | -------------------------------------------------------------------------------------------- | ------------- |
-| `PORT`     | Porta HTTP em que a API escuta. Inteiro positivo. **Default:** `3000`.                       | `PORT=3000`   |
-| `NODE_ENV` | Ambiente de execução. Valores aceitos: `development \| test \| production`. **Default:** `development`. Em `production`, mensagens de erro 500 são genéricas. | `NODE_ENV=development` |
+| Variável     | Descrição                                                                                    | Exemplo       |
+| ------------ | -------------------------------------------------------------------------------------------- | ------------- |
+| `PORT`       | Porta HTTP em que a API escuta. Inteiro positivo. **Default:** `3000`.                       | `PORT=3000`   |
+| `NODE_ENV`   | Ambiente de execução. Valores aceitos: `development \| test \| production`. **Default:** `development`. Em `production`, mensagens de erro 500 são genéricas. | `NODE_ENV=development` |
+| `JWT_SECRET` | Segredo HMAC usado por `auth.service` para assinar o fake-JWT. Mínimo 16 caracteres. **Default:** placeholder de demo — sobrescreva em qualquer ambiente real. | `JWT_SECRET=insecure-dev-secret-please-override` |
 
 ### Subir em desenvolvimento (hot reload)
 
@@ -75,6 +76,15 @@ Toda resposta de erro segue o formato canônico:
 - **404** — recurso não encontrado.
 - **500** — erro interno (mensagem genérica em `NODE_ENV=production`).
 
+### Autenticação
+
+Os endpoints sob `/tasks` exigem um token via cabeçalho `Authorization: Bearer <token>`. O token é um **fake-JWT** (mesmo formato `header.payload.signature` de um JWT real, assinado com HMAC-SHA256 sobre `JWT_SECRET`) — emitido por `POST /auth/register` ou `POST /auth/login`. Sem expiração e sem revogação: é didático, não substitui uma implementação real.
+
+Respostas de erro de autenticação:
+
+- **401** `missing or malformed Authorization header` — cabeçalho ausente ou fora do formato `Bearer <token>`.
+- **401** `invalid or expired token` — assinatura ou payload não conferem.
+
 ### Modelo `Task`
 
 ```ts
@@ -102,10 +112,41 @@ Resposta `200`:
 { "status": "ok" }
 ```
 
+#### `POST /auth/register` — criar conta e obter token
+
+```bash
+curl -s -X POST http://localhost:3000/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"ada@example.com","password":"correct-horse-battery"}'
+```
+
+Respostas:
+
+- `201` com `{ "user": { "id", "email" }, "token": "<fake-jwt>" }`.
+- `400` quando `email`/`password` falham na validação (`password` mínimo 8 chars).
+- `409` quando o email já está registrado.
+
+#### `POST /auth/login` — trocar credenciais por token
+
+```bash
+curl -s -X POST http://localhost:3000/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"ada@example.com","password":"correct-horse-battery"}'
+```
+
+Respostas:
+
+- `200` com `{ "user": { "id", "email" }, "token": "<fake-jwt>" }`.
+- `400` quando o body é inválido.
+- `401` `invalid email or password` — mesmo texto para email desconhecido e senha errada (não revela qual falhou).
+
+> Os exemplos abaixo de `/tasks/*` omitem o cabeçalho `Authorization` por brevidade — todos exigem `Authorization: Bearer <token>`. Sem token (ou com token inválido), respondem `401`.
+
 #### `GET /tasks` — listar todas as tarefas
 
 ```bash
-curl -s http://localhost:3000/tasks
+curl -s http://localhost:3000/tasks \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 Resposta `200`: `Task[]` (array vazio se não houver tarefas).
@@ -203,24 +244,43 @@ Respostas:
 | `npm run test:watch` | Jest em modo watch.                                         |
 | `npm run lint`   | ESLint sobre `src/**/*.ts`.                                     |
 | `npm run lint:fix` | ESLint com correções automáticas.                             |
+| `npm run docs:gen` | Gera `openapi.json` a partir dos schemas Zod (`src/openapi/generate.ts`). Servido em `/docs` via Swagger UI. |
 
 ### Estrutura de pastas
 
 ```
 src/
-├── app.ts                  # factory do Express (createApp)
-├── index.ts                # entrypoint do processo (listen)
+├── app.ts                       # factory do Express (createApp)
+├── index.ts                     # entrypoint do processo (listen)
+├── auth/
+│   ├── auth.service.ts          # hashPassword/verifyPassword + fake-JWT (sign/verify)
+│   └── usersDb.ts               # repositório em memória de usuários
 ├── config/
-│   └── env.ts              # schema Zod + parse de process.env
+│   └── env.ts                   # schema Zod + parse de process.env
+├── db/
+│   └── client.ts                # stub de cliente de banco (selectAll/insert/...)
 ├── middlewares/
-│   └── errorHandler.ts     # HttpError + handler global ({error,status})
+│   ├── errorHandler.ts          # HttpError + handler global ({error,status})
+│   └── jwt.middleware.ts        # protege /tasks via Authorization: Bearer
+├── openapi/
+│   ├── generate.ts              # gera openapi.json a partir dos schemas Zod
+│   ├── paths.ts                 # registro de rotas/components para o OpenAPI
+│   └── registry.ts              # configura zod-to-openapi (.openapi())
+├── queue/
+│   └── producer.ts              # stub de producer AMQP (publish(routingKey,payload))
 ├── routes/
-│   ├── health.ts           # GET /
-│   └── tasks.ts            # CRUD + /search + /stats
+│   ├── auth.ts                  # POST /auth/register + POST /auth/login
+│   ├── health.ts                # GET /
+│   └── tasks.ts                 # CRUD + /search + /stats (atrás de jwtMiddleware)
 ├── schemas/
-│   └── task.ts             # taskInputSchema + tipo Task
+│   ├── auth.ts                  # credentialsSchema + publicUserSchema + authResponseSchema
+│   ├── error.ts                 # errorResponseSchema
+│   ├── health.ts                # healthResponseSchema
+│   └── task.ts                  # taskInputSchema + tipo Task
+├── services/
+│   └── cache.service.ts         # stub de Redis (get/set/del + TTL)
 └── storage/
-    └── tasksDb.ts          # storage em memória
+    └── tasksDb.ts               # storage em memória de tasks
 ```
 
 ### Convenções de código
