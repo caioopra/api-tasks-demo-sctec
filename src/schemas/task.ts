@@ -84,6 +84,26 @@ export const taskSearchQuerySchema = z
   .openapi('TaskSearchQuery');
 
 /**
+ * Response shape of `POST /tasks/:id/share`.
+ *
+ * Snapshot the caller can forward to a third party: the full task plus
+ * provenance (`shared_by` from the JWT) and a server-generated timestamp.
+ * Nothing is persisted — this is a stateless export.
+ */
+export const taskShareSchema = z
+  .object({
+    task: taskSchema,
+    shared_by: z.object({
+      email: z.string().email().openapi({ example: 'tester@example.com' }),
+    }),
+    shared_at: z
+      .string()
+      .datetime()
+      .openapi({ example: '2026-05-19T12:34:56.000Z' }),
+  })
+  .openapi('TaskShare');
+
+/**
  * Response shape of `GET /tasks/stats`.
  *
  * Keys under `byPriority` are stable so consumers can read the shape
